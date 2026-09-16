@@ -179,6 +179,10 @@ html, body { margin:0; padding:0; width:100%; }
 
 <script>
 (function(){
+  // Esta app le habla a TU PROPIO proxy (ver gemini-worker.js), nunca directo a Gemini
+  // con una key visible en el navegador. Despliega el Worker y pon aquí su URL:
+  const GEMINI_ENDPOINT = 'https://muddy-forest-4fa9.danielisrael52.workers.dev/';
+
   const STEPS = ['capture','review','people','assign','summary'];
   const PALETTE = ['#1F6E43','#2A4B7C','#8B3A3A','#6B4E9C','#B8791F','#2F7E7E','#9C4B6B'];
 
@@ -243,25 +247,28 @@ html, body { margin:0; padding:0; width:100%; }
       '- No incluyas subtotal, impuestos, IVA, propina ni el total como productos.\n' +
       '- No agregues comentarios ni texto fuera del JSON.';
 
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch(GEMINI_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
-            { type: 'text', text: prompt }
+        contents: [{
+          parts: [
+            { inline_data: { mime_type: 'image/jpeg', data: base64 } },
+            { text: prompt }
           ]
-        }]
+        }],
+        generationConfig: { responseMimeType: 'application/json' }
       })
     });
+
+    if (res.status === 400 || res.status === 403) throw new Error('bad-key');
     if (!res.ok) throw new Error('api-error');
+
     const data = await res.json();
-    const textBlock = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-    const clean = textBlock.replace(/```json/g, '').replace(/```/g, '').trim();
+    const textOut = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
+      data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (!textOut) throw new Error('empty');
+    const clean = textOut.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(clean);
     if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) throw new Error('empty');
     return parsed.items.map((it, i) => ({
@@ -285,7 +292,11 @@ html, body { margin:0; padding:0; width:100%; }
       state.items = items;
       state.step = 'review';
     } catch (err) {
-      state.ocrError = 'No pude leer el ticket con claridad. Intenta con más luz y que se vea completo, o agrega los productos a mano.';
+      if (err.message === 'bad-key') {
+        state.ocrError = 'El servicio de lectura no está disponible en este momento. Intenta más tarde o agrega los productos a mano.';
+      } else {
+        state.ocrError = 'No pude leer el ticket con claridad. Intenta con más luz y que se vea completo, o agrega los productos a mano.';
+      }
       state.step = 'capture';
     }
     render();
@@ -348,6 +359,7 @@ html, body { margin:0; padding:0; width:100%; }
     const activeIdx = STEPS.indexOf(state.step);
     dotsEl.innerHTML = STEPS.map((s,i) => '<div class="bs-dot' + (i<=activeIdx?' on':'') + '"></div>').join('');
   }
+
 
   function renderLoading(){
     return '<div class="bs-loader"><div class="bs-spinner"></div><p>' + state.loadingMsg + '</p></div>';
