@@ -181,7 +181,7 @@ html, body { margin:0; padding:0; width:100%; }
 (function(){
   // Esta app le habla a TU PROPIO proxy (ver gemini-worker.js), nunca directo a Gemini
   // con una key visible en el navegador. Despliega el Worker y pon aquí su URL:
-  const GEMINI_ENDPOINT = 'https://muddy-forest-4fa9.danielisrael52.workers.dev/';
+  const GEMINI_ENDPOINT = 'https://REEMPLAZA-CON-TU-WORKER.workers.dev';
 
   const STEPS = ['capture','review','people','assign','summary'];
   const PALETTE = ['#1F6E43','#2A4B7C','#8B3A3A','#6B4E9C','#B8791F','#2F7E7E','#9C4B6B'];
@@ -247,29 +247,45 @@ html, body { margin:0; padding:0; width:100%; }
       '- No incluyas subtotal, impuestos, IVA, propina ni el total como productos.\n' +
       '- No agregues comentarios ni texto fuera del JSON.';
 
-    const res = await fetch(GEMINI_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: 'image/jpeg', data: base64 } },
-            { text: prompt }
-          ]
-        }],
-        generationConfig: { responseMimeType: 'application/json' }
-      })
+    const requestBody = JSON.stringify({
+      contents: [{
+        parts: [
+          { inline_data: { mime_type: 'image/jpeg', data: base64 } },
+          { text: prompt }
+        ]
+      }],
+      generationConfig: { responseMimeType: 'application/json' }
     });
 
-    if (res.status === 400 || res.status === 403) throw new Error('bad-key');
-    if (!res.ok) throw new Error('api-error');
+    let res;
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      res = await fetch(GEMINI_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: requestBody
+      });
+      if (res.status !== 503 || attempt === maxAttempts) break;
+      state.loadingMsg = 'El servicio está saturado, reintentando (' + attempt + '/' + (maxAttempts - 1) + ')…';
+      render();
+      await new Promise(r => setTimeout(r, 1500 * attempt));
+    }
+
+    if (!res.ok) {
+      let bodyText = '';
+      try { bodyText = await res.text(); } catch(e){}
+      console.error('OCR error', res.status, bodyText);
+      if (res.status === 503) throw new Error('overloaded');
+      throw new Error('http:' + res.status);
+    }
 
     const data = await res.json();
     const textOut = data && data.candidates && data.candidates[0] && data.candidates[0].content &&
       data.candidates[0].content.parts && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
-    if (!textOut) throw new Error('empty');
+    if (!textOut) { console.error('OCR empty response', data); throw new Error('empty'); }
     const clean = textOut.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(clean);
+    let parsed;
+    try { parsed = JSON.parse(clean); } catch(e) { console.error('OCR bad JSON', clean); throw new Error('badjson'); }
     if (!parsed.items || !Array.isArray(parsed.items) || parsed.items.length === 0) throw new Error('empty');
     return parsed.items.map((it, i) => ({
       id: uid('it'),
@@ -292,7 +308,10 @@ html, body { margin:0; padding:0; width:100%; }
       state.items = items;
       state.step = 'review';
     } catch (err) {
-      if (err.message === 'bad-key') {
+      const msg = err && err.message ? err.message : '';
+      if (msg === 'overloaded') {
+        state.ocrError = 'El lector está saturado por demanda alta en este momento. Espera un minuto e intenta de nuevo, o agrega los productos a mano.';
+      } else if (msg.indexOf('http:') === 0) {
         state.ocrError = 'El servicio de lectura no está disponible en este momento. Intenta más tarde o agrega los productos a mano.';
       } else {
         state.ocrError = 'No pude leer el ticket con claridad. Intenta con más luz y que se vea completo, o agrega los productos a mano.';
