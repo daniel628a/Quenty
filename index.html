@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>Divide la cuenta</title>
 <style>
-html, body { margin:0; padding:0; width:100%; }
+html, body { margin:0; padding:0; width:100%; min-height:100%; background:#E8E3D3; }
+html { height:100%; }
+body { min-height:100dvh; }
 .bs-app {
   --page-bg: #E8E3D3;
   --paper: #FBF8EF;
@@ -22,7 +24,8 @@ html, body { margin:0; padding:0; width:100%; }
   font-family: var(--sans);
   color: var(--ink);
   background: var(--page-bg);
-  min-height: 100%;
+  min-height: 100dvh;
+  width: 100%;
   padding: 28px 14px 48px;
   box-sizing: border-box;
   display: flex;
@@ -107,6 +110,16 @@ html, body { margin:0; padding:0; width:100%; }
 .bs-chip-name { flex:1; font-weight:600; font-size: 14px; }
 .bs-chip button { background: none; border:none; color:var(--ink-faint); width:20px; font-size:16px; cursor:pointer; line-height:1; padding:0; }
 
+/* turn hero (assign mode) — cambia de color según de quién es el turno */
+.bs-turn-hero { display:flex; align-items:center; justify-content:space-between; gap:10px; background: var(--accent); border-radius: 14px; padding: 16px 14px; margin-bottom: 16px; transition: background .2s; }
+.bs-turn-hero-nav { width:32px; height:32px; border-radius:50%; border:none; background: rgba(255,255,255,0.24); color:#fff; font-size:17px; cursor:pointer; flex-shrink:0; }
+.bs-turn-hero-nav:disabled { opacity:0.3; cursor:not-allowed; }
+.bs-turn-hero-info { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.bs-turn-hero-count { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,0.85); }
+.bs-turn-hero-name { font-family: var(--sans); font-weight:800; font-size: 23px; color: #fff; letter-spacing:-0.01em; }
+
+.bs-claim-chip { display:inline-block; font-weight:700; font-size: 11px; padding: 3px 8px; border-radius: 20px; margin: 2px 4px 0 0; }
+
 /* turn banner (assign mode) */
 .bs-turn-banner { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px dashed var(--line); }
 .bs-turn-nav { width:30px; height:30px; border-radius:50%; border:1.5px solid var(--line); background:var(--paper); color:var(--ink); font-size:16px; cursor:pointer; flex-shrink:0; }
@@ -130,9 +143,9 @@ html, body { margin:0; padding:0; width:100%; }
 .bs-breakdown-line { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); margin-top: 6px; }
 .bs-shared-note { font-size: 10.5px; color: var(--ink-faint); margin-top: 3px; font-style: italic; }
 
-.bs-turn-total { display:flex; justify-content:space-between; align-items:baseline; margin-top: 16px; padding-top: 14px; border-top: 1.5px solid var(--ink); }
+.bs-turn-total { display:flex; justify-content:space-between; align-items:baseline; margin-top: 16px; padding-top: 14px; border-top: 2px solid var(--accent); }
 .bs-turn-total-label { font-size: 13.5px; font-weight:600; }
-.bs-turn-total-num { font-family: var(--mono); font-weight:700; font-size: 18px; }
+.bs-turn-total-num { font-family: var(--mono); font-weight:700; font-size: 18px; color: var(--accent); }
 
 .bs-ticket-total-row { display:flex; justify-content:space-between; align-items:baseline; margin-top: 6px; padding-top: 14px; border-top: 1.5px solid var(--ink); }
 .bs-ticket-total-label { font-size: 13.5px; font-weight:700; }
@@ -442,6 +455,7 @@ html, body { margin:0; padding:0; width:100%; }
     const person = state.people[state.currentPersonIndex];
     const idx = state.currentPersonIndex;
     const isLast = idx === state.people.length - 1;
+    const myColor = personColor(idx);
 
     const rows = state.items.map(item => {
       const remaining = remainingFor(item);
@@ -449,8 +463,8 @@ html, body { margin:0; padding:0; width:100%; }
       const claimText = state.people
         .map((p,i) => ({ p, i, c: claimCount(item.id, p.id) }))
         .filter(x => x.c > 0)
-        .map(x => x.c + (x.c === 1 ? ' comprado por ' : ' comprados por ') + escapeHtml(x.p.name))
-        .join(' · ');
+        .map(x => '<span class="bs-claim-chip" style="background:' + personColor(x.i) + '22;color:' + personColor(x.i) + '">' + x.c + (x.c === 1 ? ' comprado por ' : ' comprados por ') + escapeHtml(x.p.name) + '</span>')
+        .join('');
       return '' +
         '<div class="bs-tline">' +
           '<div class="bs-tline-main">' +
@@ -470,19 +484,21 @@ html, body { margin:0; padding:0; width:100%; }
 
     return '' +
       '<div class="bs-step-label">paso 4 de 5</div>' +
-      '<div class="bs-turn-banner">' +
-        '<button class="bs-turn-nav" data-action="prev-person" ' + (idx===0?'disabled':'') + '>‹</button>' +
-        '<div class="bs-turn-info">' +
-          '<div class="bs-turn-who"><span class="bs-swatch" style="background:' + personColor(idx) + '"></span>Turno de ' + escapeHtml(person.name) + '</div>' +
-          '<div class="bs-turn-count">' + (idx+1) + ' de ' + state.people.length + '</div>' +
+      '<div style="--accent:' + myColor + '">' +
+        '<div class="bs-turn-hero">' +
+          '<button class="bs-turn-hero-nav" data-action="prev-person" ' + (idx===0?'disabled':'') + '>‹</button>' +
+          '<div class="bs-turn-hero-info">' +
+            '<div class="bs-turn-hero-count">turno ' + (idx+1) + ' de ' + state.people.length + '</div>' +
+            '<div class="bs-turn-hero-name">' + escapeHtml(person.name) + '</div>' +
+          '</div>' +
+          '<button class="bs-turn-hero-nav" data-action="prev-person-nav-next" data-dir="next" ' + (idx>=state.people.length-1?'disabled':'') + '>›</button>' +
         '</div>' +
-        '<button class="bs-turn-nav" data-action="prev-person-nav-next" data-dir="next" ' + (idx>=state.people.length-1?'disabled':'') + '>›</button>' +
-      '</div>' +
-      '<p class="bs-sub" style="margin-bottom:14px">Toca + junto a lo que pidió ' + escapeHtml(person.name) + '.</p>' +
-      '<div>' + rows + '</div>' +
-      '<div class="bs-turn-total">' +
-        '<div class="bs-turn-total-label">Total de ' + escapeHtml(person.name) + ' antes de propina</div>' +
-        '<div class="bs-turn-total-num">' + fmt(myTotal) + '</div>' +
+        '<p class="bs-sub" style="margin-bottom:14px">Toca + junto a lo que pidió ' + escapeHtml(person.name) + '.</p>' +
+        '<div>' + rows + '</div>' +
+        '<div class="bs-turn-total">' +
+          '<div class="bs-turn-total-label">Total de ' + escapeHtml(person.name) + ' antes de propina</div>' +
+          '<div class="bs-turn-total-num">' + fmt(myTotal) + '</div>' +
+        '</div>' +
       '</div>' +
       '<div style="height:18px"></div>' +
       (isLast
