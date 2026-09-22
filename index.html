@@ -172,8 +172,6 @@ html, body, .bs-app { transition: background-color .35s ease; }
 .bs-turn-focus-name { font-family: var(--sans); font-weight:800; font-size: 42px; line-height:1.05; color:#fff; letter-spacing:-0.02em; text-shadow: 0 2px 14px rgba(0,0,0,0.18); word-break: break-word; }
 @keyframes bs-turn-pop { from { opacity:0; transform: translateY(-8px) scale(0.95); } to { opacity:1; transform: translateY(0) scale(1); } }
 
-.bs-app.bs-turn-active .bs-dot { background: rgba(255,255,255,0.4); }
-.bs-app.bs-turn-active .bs-dot.on { background: #fff; }
 </style>
 </head>
 <body>
@@ -417,7 +415,7 @@ html, body, .bs-app { transition: background-color .35s ease; }
       card.innerHTML = renderLoading();
       return;
     }
-    dotsEl.classList.remove('bs-hidden');
+    dotsEl.classList.toggle('bs-hidden', state.step === 'assign');
     renderDots();
     card.innerHTML = ({
       capture: renderCapture,
