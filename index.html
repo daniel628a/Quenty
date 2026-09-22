@@ -167,6 +167,7 @@ html, body { margin:0; padding:0; width:100%; min-height: 100vh; background-colo
 html, body, .bs-app { transition: background-color .35s ease; }
 
 .bs-turn-focus { width:100%; max-width:400px; text-align:center; margin-bottom:18px; animation: bs-turn-pop .35s ease; }
+.bs-turn-focus:focus { outline:none; }
 .bs-turn-focus-label { font-family: var(--mono); font-size:12px; color: rgba(255,255,255,0.85); letter-spacing:0.02em; margin-bottom:4px; }
 .bs-turn-focus-name { font-family: var(--sans); font-weight:800; font-size: 42px; line-height:1.05; color:#fff; letter-spacing:-0.02em; text-shadow: 0 2px 14px rgba(0,0,0,0.18); word-break: break-word; }
 @keyframes bs-turn-pop { from { opacity:0; transform: translateY(-8px) scale(0.95); } to { opacity:1; transform: translateY(0) scale(1); } }
@@ -371,6 +372,9 @@ html, body, .bs-app { transition: background-color .35s ease; }
   }
 
   // ---------- theming por turno ----------
+  let lastThemedPersonIndex = -1;
+  let lastThemedActive = false;
+
   function applyTurnTheme(){
     const isAssign = state.step === 'assign' && state.people[state.currentPersonIndex];
     if (isAssign) {
@@ -384,7 +388,16 @@ html, body, .bs-app { transition: background-color .35s ease; }
       turnFocusEl.classList.remove('bs-hidden');
       turnFocusEl.innerHTML =
         '<div class="bs-turn-focus-label">turno ' + (idx + 1) + ' de ' + state.people.length + '</div>' +
-        '<div class="bs-turn-focus-name">' + escapeHtml(person.name) + '</div>';
+        '<div class="bs-turn-focus-name">¿Qué pidió ' + escapeHtml(person.name) + '?</div>';
+
+      const personChanged = idx !== lastThemedPersonIndex || !lastThemedActive;
+      if (personChanged) {
+        turnFocusEl.setAttribute('tabindex', '-1');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        turnFocusEl.focus({ preventScroll: true });
+      }
+      lastThemedPersonIndex = idx;
+      lastThemedActive = true;
     } else {
       document.body.style.backgroundColor = '';
       app.style.backgroundColor = '';
@@ -392,6 +405,7 @@ html, body, .bs-app { transition: background-color .35s ease; }
       brandEl.classList.remove('bs-hidden');
       turnFocusEl.classList.add('bs-hidden');
       turnFocusEl.innerHTML = '';
+      lastThemedActive = false;
     }
   }
 
