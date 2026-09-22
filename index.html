@@ -114,7 +114,7 @@ html, body { margin:0; padding:0; width:100%; min-height: 100vh; background-colo
 .bs-turn-nav:disabled { opacity:0.35; cursor:not-allowed; }
 .bs-turn-info { display:flex; flex-direction:column; align-items:center; gap:3px; }
 .bs-turn-who { display:flex; align-items:center; gap:7px; font-weight:700; font-size:15.5px; }
-.bs-turn-count { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); }
+.bs-turn-count { font-family: var(--mono); font-size: 11px; color: var(--ink-faint); flex:1; text-align:center; min-width:0; }
 
 /* ticket rows shared by assign + summary */
 .bs-tline { padding: 12px 0; border-bottom: 1px dashed var(--line); }
@@ -163,15 +163,26 @@ html, body { margin:0; padding:0; width:100%; min-height: 100vh; background-colo
 
 .bs-swatch { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
 .bs-hidden { display:none !important; }
+
+html, body, .bs-app { transition: background-color .35s ease; }
+
+.bs-turn-focus { width:100%; max-width:400px; text-align:center; margin-bottom:18px; animation: bs-turn-pop .35s ease; }
+.bs-turn-focus-label { font-family: var(--mono); font-size:12px; color: rgba(255,255,255,0.85); letter-spacing:0.02em; margin-bottom:4px; }
+.bs-turn-focus-name { font-family: var(--sans); font-weight:800; font-size: 42px; line-height:1.05; color:#fff; letter-spacing:-0.02em; text-shadow: 0 2px 14px rgba(0,0,0,0.18); word-break: break-word; }
+@keyframes bs-turn-pop { from { opacity:0; transform: translateY(-8px) scale(0.95); } to { opacity:1; transform: translateY(0) scale(1); } }
+
+.bs-app.bs-turn-active .bs-dot { background: rgba(255,255,255,0.4); }
+.bs-app.bs-turn-active .bs-dot.on { background: #fff; }
 </style>
 </head>
 <body>
 
 <div class="bs-app" id="bsApp">
-  <div class="bs-brand">
+  <div class="bs-brand" id="bsBrand">
     <h1>Divide la cuenta</h1>
     <p id="bsSubtitle">foto → ticket digital → turnos → propina</p>
   </div>
+  <div class="bs-turn-focus bs-hidden" id="bsTurnFocus"></div>
   <div id="bsDots" class="bs-dots"></div>
   <div id="bsCard" class="bs-card"></div>
   <input type="file" id="bsCameraInput" accept="image/*" capture="environment" class="bs-hidden" />
@@ -201,6 +212,8 @@ html, body { margin:0; padding:0; width:100%; min-height: 100vh; background-colo
   const app = document.getElementById('bsApp');
   const card = document.getElementById('bsCard');
   const dotsEl = document.getElementById('bsDots');
+  const brandEl = document.getElementById('bsBrand');
+  const turnFocusEl = document.getElementById('bsTurnFocus');
   const cameraInput = document.getElementById('bsCameraInput');
   const fileInput = document.getElementById('bsFileInput');
 
@@ -357,8 +370,34 @@ html, body { margin:0; padding:0; width:100%; min-height: 100vh; background-colo
     return { personTotals, grandTotal };
   }
 
+  // ---------- theming por turno ----------
+  function applyTurnTheme(){
+    const isAssign = state.step === 'assign' && state.people[state.currentPersonIndex];
+    if (isAssign) {
+      const idx = state.currentPersonIndex;
+      const person = state.people[idx];
+      const color = personColor(idx);
+      document.body.style.backgroundColor = color;
+      app.style.backgroundColor = color;
+      app.classList.add('bs-turn-active');
+      brandEl.classList.add('bs-hidden');
+      turnFocusEl.classList.remove('bs-hidden');
+      turnFocusEl.innerHTML =
+        '<div class="bs-turn-focus-label">turno ' + (idx + 1) + ' de ' + state.people.length + '</div>' +
+        '<div class="bs-turn-focus-name">' + escapeHtml(person.name) + '</div>';
+    } else {
+      document.body.style.backgroundColor = '';
+      app.style.backgroundColor = '';
+      app.classList.remove('bs-turn-active');
+      brandEl.classList.remove('bs-hidden');
+      turnFocusEl.classList.add('bs-hidden');
+      turnFocusEl.innerHTML = '';
+    }
+  }
+
   // ---------- render ----------
   function render(){
+    applyTurnTheme();
     if (state.step === 'loading') {
       dotsEl.classList.add('bs-hidden');
       card.innerHTML = renderLoading();
@@ -473,13 +512,10 @@ html, body { margin:0; padding:0; width:100%; min-height: 100vh; background-colo
       '<div class="bs-step-label">paso 4 de 5</div>' +
       '<div class="bs-turn-banner">' +
         '<button class="bs-turn-nav" data-action="prev-person" ' + (idx===0?'disabled':'') + '>‹</button>' +
-        '<div class="bs-turn-info">' +
-          '<div class="bs-turn-who"><span class="bs-swatch" style="background:' + personColor(idx) + '"></span>Turno de ' + escapeHtml(person.name) + '</div>' +
-          '<div class="bs-turn-count">' + (idx+1) + ' de ' + state.people.length + '</div>' +
-        '</div>' +
+        '<div class="bs-turn-count">toca lo que pidió ' + escapeHtml(person.name) + '</div>' +
         '<button class="bs-turn-nav" data-action="prev-person-nav-next" data-dir="next" ' + (idx>=state.people.length-1?'disabled':'') + '>›</button>' +
       '</div>' +
-      '<p class="bs-sub" style="margin-bottom:14px">Toca + junto a lo que pidió ' + escapeHtml(person.name) + '.</p>' +
+      '<div style="height:16px"></div>' +
       '<div>' + rows + '</div>' +
       '<div class="bs-turn-total">' +
         '<div class="bs-turn-total-label">Total de ' + escapeHtml(person.name) + ' antes de propina</div>' +
